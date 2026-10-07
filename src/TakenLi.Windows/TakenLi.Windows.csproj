@@ -9,7 +9,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>TakenLi</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>

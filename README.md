@@ -33,6 +33,8 @@ dotnet build src/TakenLi.Windows/TakenLi.Windows.csproj --configuration Release
 dotnet publish src/TakenLi.Windows/TakenLi.Windows.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishTrimmed=false --output artifacts/win-x64
 ```
 
-אפשר לבנות את קובץ Windows גם ב־Linux, אבל להריץ את היישום ולבדוק החלפת טקסט בתוכנות אחרות יש ב־Windows. `scripts/Publish.ps1` מריץ בדיקות ומפיק קובץ הפצה; ניתן לבחור בו גם `win-arm64`. תהליך GitHub Actions בונה קובץ x64 ושומר אותו כתוצר, אך אינו מפיץ אותו לציבור.
+אפשר לבנות את קובץ Windows גם ב־Linux, אבל להריץ את היישום ולבדוק החלפת טקסט בתוכנות אחרות יש ב־Windows. `scripts/Publish.ps1` מריץ בדיקות ומפיק קובץ הפצה; ניתן לבחור בו גם `win-arm64`. תהליך GitHub Actions בונה קובץ x64 ומריץ בדיקות פריסה של חלונות Windows בעברית ובאנגלית. תצלומי החלונות נשמרים בתוצר נפרד **TakenLi-native-ui-checks**; קובץ ההפעלה בתוצר **TakenLi-windows-x64**.
+
+בדיקות ממשק על Windows: `dotnet run --project tests/TakenLi.Windows.Checks --configuration Release -- artifacts/ui-checks`. נוסח ההסבר המאושר נשמר ב־[WELCOME-COPY.md](WELCOME-COPY.md).
 
 מפרט ההתנהגות: [REQUIREMENTS.md](REQUIREMENTS.md). מפרט העיצוב שאושר: [DESIGN.md](DESIGN.md). ההדמיות ב־`design-exploration` נועדו להשוואת עיצוב בלבד; הן אינן ממשק היישום.

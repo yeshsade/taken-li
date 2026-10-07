@@ -16,6 +16,16 @@ jobs:
       - name: Check core behavior and publish self-contained application
         shell: pwsh
         run: ./scripts/Publish.ps1
+      - name: Check actual Windows Forms layout and capture screenshots
+        shell: pwsh
+        run: dotnet run --project tests/TakenLi.Windows.Checks --configuration Release -- artifacts/ui-checks
+      - name: Upload native UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TakenLi-native-ui-checks
+          path: artifacts/ui-checks/*.png
+          if-no-files-found: warn
       - name: Upload executable
         uses: actions/upload-artifact@v4
         with:

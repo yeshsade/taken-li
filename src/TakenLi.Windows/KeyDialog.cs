@@ -23,9 +23,10 @@ internal sealed class KeyDialog : Form
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = MaximizeBox = false;
         RightToLeft = ui.Direction;
-        RightToLeftLayout = ui.Hebrew;
+        RightToLeftLayout = false;
         KeyPreview = true;
-        var content = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(24), ColumnCount = 1, RowCount = 4 };
+        var content = Ui.Table(1, 4);
+        content.Padding = new Padding(24);
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 65));
         content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -34,7 +35,7 @@ internal sealed class KeyDialog : Form
         content.Controls.Add(ui.Label(ui.T("לחץ על מקש F, או על אות/ספרה עם Ctrl, Shift או Alt. לאחר מכן לחץ על אישור.", "Press a function key, or a letter/digit with Ctrl, Shift or Alt. Then select OK."), height: 60), 0, 1);
         _preview = new Label { Text = current.Display, Font = new Font("Consolas", 15), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, RightToLeft = RightToLeft.No };
         content.Controls.Add(_preview, 0, 2);
-        var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, RightToLeft = RightToLeft.No };
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = ui.Hebrew ? FlowDirection.RightToLeft : FlowDirection.LeftToRight, RightToLeft = RightToLeft.No, WrapContents = false };
         var cancel = ui.Button(ui.T("ביטול", "Cancel"));
         cancel.DialogResult = DialogResult.Cancel;
         var ok = ui.Button(ui.T("אישור", "OK"), true);

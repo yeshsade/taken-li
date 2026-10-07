@@ -12,6 +12,9 @@ internal sealed class Ui
     internal string T(string he, string en) => Hebrew ? he : en;
     internal RightToLeft Direction => Hebrew ? RightToLeft.Yes : RightToLeft.No;
     internal ContentAlignment Alignment => Hebrew ? ContentAlignment.MiddleRight : ContentAlignment.MiddleLeft;
+    // Keep containers LTR and place logical columns explicitly. Combining mirrored
+    // windows, mirrored tables and RTL text otherwise mirrors the layout twice.
+    internal int Column(int logical, int count) => Hebrew ? count - 1 - logical : logical;
 
     internal string ActionName(TextAction action) => action switch
     {
@@ -50,31 +53,68 @@ internal sealed class Ui
         MessageBoxDefaultButton.Button1, Hebrew ? MessageBoxOptions.RtlReading | MessageBoxOptions.RightAlign : 0);
 
     internal static readonly Color Accent = Color.FromArgb(70, 97, 81);
-    internal static readonly Color Muted = Color.FromArgb(100, 107, 101);
-    internal static readonly Color Border = Color.FromArgb(222, 223, 215);
+    internal static readonly Color Ink = Color.FromArgb(31, 38, 33);
+    internal static readonly Color Muted = Color.FromArgb(77, 87, 80);
+    internal static readonly Color Border = Color.FromArgb(145, 156, 148);
+    internal static readonly Color Divider = Color.FromArgb(210, 216, 211);
     internal static readonly Color Surface = Color.FromArgb(255, 254, 251);
-    internal static readonly Color Sidebar = Color.FromArgb(245, 244, 239);
-    internal static readonly Color Selected = Color.FromArgb(228, 234, 226);
-    internal static readonly Color KeySurface = Color.FromArgb(244, 245, 239);
+    internal static readonly Color Sidebar = Color.FromArgb(239, 241, 235);
+    internal static readonly Color Selected = Color.FromArgb(211, 225, 213);
+    internal static readonly Color KeySurface = Color.FromArgb(234, 239, 232);
 
     internal Label Label(string text, bool bold = false, int height = 30) => new()
     {
-        Text = text, Dock = DockStyle.Top, Height = height, TextAlign = Alignment,
+        Text = text, Dock = DockStyle.Fill, Height = height, TextAlign = Alignment, ForeColor = Ink,
         RightToLeft = Direction, Font = new Font("Segoe UI", bold ? 11 : 10, bold ? FontStyle.Bold : FontStyle.Regular),
         AutoEllipsis = false, Margin = new Padding(0, 5, 0, 5)
     };
 
-    internal Button Button(string text, bool primary = false) => new()
+    internal Button Button(string text, bool primary = false)
     {
-        Text = text, AutoSize = true, MinimumSize = new Size(85, 34), Height = 34,
-        BackColor = primary ? Accent : Surface, ForeColor = primary ? Color.White : Color.FromArgb(41, 45, 42),
-        FlatStyle = FlatStyle.Flat, UseVisualStyleBackColor = !primary, Margin = new Padding(5),
-        AccessibleName = text
-    };
+        var button = new Button
+        {
+            Text = text, AutoSize = false, Size = new Size(100, 36), MinimumSize = new Size(85, 36),
+            BackColor = primary ? Accent : Surface, ForeColor = primary ? Color.White : Ink,
+            FlatStyle = FlatStyle.Flat, UseVisualStyleBackColor = false, Margin = new Padding(5),
+            AccessibleName = text, RightToLeft = Direction, Cursor = Cursors.Hand
+        };
+        button.FlatAppearance.BorderColor = primary ? Accent : Border;
+        button.FlatAppearance.MouseOverBackColor = primary ? Color.FromArgb(54, 78, 63) : KeySurface;
+        return button;
+    }
 
     internal CheckBox Check(string text, bool value) => new()
     {
         Text = text, Checked = value, AutoSize = true, RightToLeft = Direction,
+        Anchor = Hebrew ? AnchorStyles.Right : AnchorStyles.Left, ForeColor = Ink,
         Margin = new Padding(0, 10, 0, 10), AccessibleName = text
     };
+
+    internal static TableLayoutPanel Table(int columns, int rows) => new()
+    {
+        ColumnCount = columns, RowCount = rows, RightToLeft = RightToLeft.No,
+        Margin = Padding.Empty, Dock = DockStyle.Fill
+    };
+
+    internal Label Paragraph(string text, bool bold = false) => new WrappingLabel
+    {
+        Text = text, AutoSize = true, Dock = DockStyle.Top, TextAlign = Hebrew ? ContentAlignment.TopRight : ContentAlignment.TopLeft,
+        RightToLeft = Direction, ForeColor = Ink, Margin = new Padding(0, 6, 0, 10),
+        Font = new Font("Segoe UI", bold ? 11 : 10, bold ? FontStyle.Bold : FontStyle.Regular)
+    };
+}
+
+// A TableLayoutPanel supplies the available column width. Measure paragraphs at
+// that width rather than letting long text create a wide, single-line label.
+internal sealed class WrappingLabel : Label
+{
+    public override Size GetPreferredSize(Size proposedSize)
+    {
+        var width = proposedSize.Width > 1 && proposedSize.Width < int.MaxValue
+            ? proposedSize.Width : Math.Max(1, Parent?.ClientSize.Width - (Parent?.Padding.Horizontal ?? 0) - Margin.Horizontal ?? 600);
+        var flags = TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.NoPrefix;
+        if (RightToLeft == RightToLeft.Yes) flags |= TextFormatFlags.RightToLeft;
+        var measured = TextRenderer.MeasureText(Text, Font, new Size(width, int.MaxValue), flags);
+        return new Size(width, measured.Height + Padding.Vertical + 4);
+    }
 }
