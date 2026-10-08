@@ -15,6 +15,7 @@ internal static class Program
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
+        if (args.Length > 0 && args[0] == "--editor-host") return EditorChecks.Host(args[1]);
         _output = args.Length > 0 ? args[0] : Path.Combine("artifacts", "ui-checks");
         Directory.CreateDirectory(_output);
         try
@@ -32,6 +33,7 @@ internal static class Program
             Assert(Contrast(Ui.Ink, Ui.Surface) >= 7, "Main text contrast >= 7:1");
             Assert(Contrast(Ui.Muted, Ui.Surface) >= 4.5, "Secondary text contrast >= 4.5:1");
             Assert(Contrast(Color.White, Ui.Accent) >= 4.5, "Primary button contrast >= 4.5:1");
+            EditorChecks.Run();
             Console.WriteLine($"PASS: {_checks} native Windows UI checks; screenshots: {_output}");
             return 0;
         }
