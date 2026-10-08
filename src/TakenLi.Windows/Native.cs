@@ -62,13 +62,17 @@ internal static class Native
         for (var i = 0; i < keys.Length; i++)
         {
             inputs[i].Type = 1;
-            inputs[i].Data.Keyboard = new KeyboardInput { Key = (ushort)keys[i].Key, Flags = keys[i].Up ? 2u : 0u };
+            // Home/End and the other navigation keys belong to the extended
+            // keyboard block, not the numeric keypad. Word and shell editors
+            // can distinguish these events even when their virtual key matches.
+            var extended = keys[i].Key is >= 0x21 and <= 0x28 or 0x2D or 0x2E;
+            inputs[i].Data.Keyboard = new KeyboardInput { Key = (ushort)keys[i].Key, Flags = (keys[i].Up ? 2u : 0u) | (extended ? 1u : 0u) };
         }
         var sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Input>());
         if (sent != inputs.Length)
         {
             // Best-effort release if Windows accepted only part of a key chord.
-            for (var i = 0; i < inputs.Length; i++) inputs[i].Data.Keyboard.Flags = 2;
+            for (var i = 0; i < inputs.Length; i++) inputs[i].Data.Keyboard.Flags = (inputs[i].Data.Keyboard.Flags & 1u) | 2u;
             if (sent > 0) SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Input>());
             throw new InvalidOperationException("input");
         }

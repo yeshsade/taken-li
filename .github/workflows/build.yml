@@ -16,7 +16,7 @@ jobs:
       - name: Check core behavior and publish self-contained application
         shell: pwsh
         run: ./scripts/Publish.ps1
-      - name: Check actual Windows Forms layout and capture screenshots
+      - name: Check Windows layout, clipboard editing and registered F10
         shell: pwsh
         run: dotnet run --project tests/TakenLi.Windows.Checks --configuration Release -- artifacts/ui-checks
       - name: Upload native UI screenshots

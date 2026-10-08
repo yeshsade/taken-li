@@ -2,6 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Automation;
+using System.Windows.Automation.Text;
 using System.Windows.Forms;
 using TakenLi.Core;
 using InputLanguage = TakenLi.Core.InputLanguage;
@@ -36,18 +37,18 @@ internal sealed class TextEditor
             EnsureTarget(target);
             previousText = Clipboard.ContainsText() ? Clipboard.GetText() : null;
             var source = Native.IsEnglish(target) ? InputLanguage.English : InputLanguage.Hebrew;
+            var selection = InspectSelection();
+            if (selection.State == SelectionState.Empty)
+            {
+                SelectScope(target, settings.UnselectedScope, selection.Caret);
+                await Task.Delay(60);
+            }
             var text = await CopyAsync(target);
             copied = text is not null;
             capturedSequence = Native.GetClipboardSequenceNumber();
-            if (string.IsNullOrEmpty(text))
+            if (string.IsNullOrEmpty(text) && selection.State == SelectionState.Unknown)
             {
-                EnsureTarget(target);
-                if (settings.UnselectedScope == SelectionScope.WholeField) Native.Chord(65);
-                else
-                {
-                    Native.SendKeys((36, false), (36, true)); // Home; shift+End selects current visual line.
-                    Native.Chord(35, shift: true);
-                }
+                SelectScope(target, settings.UnselectedScope, null);
                 await Task.Delay(60);
                 text = await CopyAsync(target);
                 copied = text is not null;
@@ -82,6 +83,57 @@ internal sealed class TextEditor
             }
             Busy = false;
         }
+    }
+
+    private enum SelectionState { Unknown, Empty, Present }
+
+    private static (SelectionState State, TextPatternRange? Caret) InspectSelection()
+    {
+        try
+        {
+            var element = AutomationElement.FocusedElement;
+            if (element is null || !element.TryGetCurrentPattern(TextPattern.Pattern, out var value))
+                return (SelectionState.Unknown, null);
+            var pattern = (TextPattern)value;
+            if (pattern.SupportedTextSelection == SupportedTextSelection.None) return (SelectionState.Unknown, null);
+            var ranges = pattern.GetSelection();
+            foreach (var range in ranges)
+                if (range.CompareEndpoints(TextPatternRangeEndpoint.Start, range, TextPatternRangeEndpoint.End) != 0)
+                    return (SelectionState.Present, null);
+            return (SelectionState.Empty, ranges.Length == 1 ? ranges[0].Clone() : null);
+        }
+        catch (ElementNotAvailableException) { throw new InvalidOperationException("focus"); }
+        catch (InvalidOperationException) { return (SelectionState.Unknown, null); }
+        catch (NotSupportedException) { return (SelectionState.Unknown, null); }
+    }
+
+    private static void SelectScope(IntPtr target, SelectionScope scope, TextPatternRange? caret)
+    {
+        EnsureTarget(target);
+        if (scope == SelectionScope.WholeField) { Native.Chord(65); return; }
+        if (caret is not null)
+        {
+            try
+            {
+                // Ask the editor to select its current line. This avoids relying
+                // on Word's or an RTL editor's interpretation of Home/End.
+                caret.ExpandToEnclosingUnit(TextUnit.Line);
+                var line = caret.GetText(-1);
+                if (line.Trim('\r', '\n').Length == 0) throw new InvalidOperationException("selection");
+                // Providers may expand an unsupported unit to a paragraph or
+                // document. Never widen the user's line scope to several lines.
+                if (line.TrimEnd('\r', '\n').IndexOfAny(['\r', '\n']) >= 0)
+                    throw new NotSupportedException();
+                EnsureTarget(target);
+                caret.Select();
+                return;
+            }
+            catch (ElementNotAvailableException) { throw new InvalidOperationException("focus"); }
+            catch (InvalidOperationException error) when (error.Message != "selection") { /* Keyboard fallback below. */ }
+            catch (NotSupportedException) { /* Keyboard fallback below. */ }
+        }
+        Native.SendKeys((36, false), (36, true));
+        Native.Chord(35, shift: true);
     }
 
     private static async Task<string?> CopyAsync(IntPtr target)
