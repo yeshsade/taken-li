@@ -40,6 +40,9 @@ internal static class EditorChecks
 
     internal static void Run()
     {
+        // UI checks close their last Form before these scenarios. Install the
+        // STA message-loop context that Application.Run provides in the app.
+        SynchronizationContext.SetSynchronizationContext(new WindowsFormsSynchronizationContext());
         var scenarios = new[]
         {
             new Scenario("Hello", 5, 0, "hELLO", SelectionScope.CurrentLine, TextAction.SwapCase),
