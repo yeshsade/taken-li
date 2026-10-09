@@ -37,6 +37,6 @@ dotnet publish src/TakenLi.Windows/TakenLi.Windows.csproj --configuration Releas
 
 אפשר לבנות את קובץ Windows גם ב־Linux, אבל להריץ את היישום ולבדוק החלפת טקסט בתוכנות אחרות יש ב־Windows. `scripts/Publish.ps1` מריץ בדיקות ומפיק קובץ הפצה; ניתן לבחור בו גם `win-arm64`. תהליך GitHub Actions בונה קובץ x64 ומריץ בדיקות פריסה של חלונות Windows בעברית ובאנגלית. תצלומי החלונות נשמרים בתוצר נפרד **TakenLi-native-ui-checks**; קובץ ההפעלה בתוצר **TakenLi-windows-x64**.
 
-בדיקות ממשק על Windows: `dotnet run --project tests/TakenLi.Windows.Checks --configuration Release -- artifacts/ui-checks`. נוסח ההסבר המאושר נשמר ב־[WELCOME-COPY.md](WELCOME-COPY.md).
+בדיקות ממשק על Windows x64 דורשות גם Python 3.12: התקן את חבילות תהליך בדיקת Qt באמצעות `python -m pip install --require-hashes --only-binary=:all: -r tests/TakenLi.Windows.Checks/qt-windows-requirements.txt`, ואז הרץ `dotnet run --project tests/TakenLi.Windows.Checks --configuration Release -- artifacts/ui-checks`. חבילות אלה מיועדות לבדיקות בלבד ואינן נכללות בקובץ ההפצה. נוסח ההסבר המאושר נשמר ב־[WELCOME-COPY.md](WELCOME-COPY.md).
 
 מפרט ההתנהגות: [REQUIREMENTS.md](REQUIREMENTS.md). מפרט העיצוב שאושר: [DESIGN.md](DESIGN.md). ההדמיות ב־`design-exploration` נועדו להשוואת עיצוב בלבד; הן אינן ממשק היישום.
