@@ -67,7 +67,7 @@ internal sealed class TextEditor
             if (action == TextAction.FixLayout && Native.GetForegroundWindow() == target)
             {
                 var language = TextOperations.ResultLanguage(result);
-                if (language is not null && !Native.SwitchExistingLayout(target, language == InputLanguage.Hebrew))
+                if (language is not null && !Native.SwitchExistingLayout(target, language == InputLanguage.Hebrew, settings.DisableCapsLockOnHebrew))
                     throw new InvalidOperationException("layout");
             }
         }

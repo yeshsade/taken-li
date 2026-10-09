@@ -93,10 +93,13 @@ internal static class Program
 
         Find<Button>(form, "Page1").PerformClick();
         Pump(form);
-        var enabled = Descendants(Find<Panel>(form, "ContentPane")).OfType<CheckBox>().Single();
+        var enabled = Find<CheckBox>(form, "AutoReturnEnabled");
         var delay = Descendants(form).OfType<NumericUpDown>().Single();
         enabled.Checked = false;
         Assert(!delay.Enabled, "Disabling return disables the delay field");
+        var caps = Find<CheckBox>(form, "DisableCapsLockOnHebrew");
+        Assert(caps.Checked && caps.Enabled, "Caps Lock option defaults on and remains available when the timer is off");
+        caps.Checked = false;
         enabled.Checked = true;
         delay.Value = 45;
         Find<Button>(form, "Page2").PerformClick();
@@ -110,7 +113,7 @@ internal static class Program
         checks[1].Checked = false;
         Assert(source.AutoReturnSeconds == 30 && !source.StartWithWindows && source.ShowWelcome, "Editing does not mutate live settings");
         FindButton(form, language == "he" ? "שמירה" : "Save").PerformClick();
-        Assert(saved is { AutoReturnSeconds: 45, StartWithWindows: true, ShowWelcome: false, UnselectedScope: SelectionScope.WholeField }, "Save preserves changed settings and scope");
+        Assert(saved is { AutoReturnSeconds: 45, StartWithWindows: true, ShowWelcome: false, UnselectedScope: SelectionScope.WholeField, DisableCapsLockOnHebrew: false }, "Save preserves changed settings, scope and Caps Lock preference");
 
         using var cancelled = new SettingsForm(source, _ => throw new Exception("Cancel must not save"), () => { });
         Open(cancelled);

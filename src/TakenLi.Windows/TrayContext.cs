@@ -126,7 +126,7 @@ internal sealed class TrayContext : ApplicationContext
         }
         if (_idle.ShouldReturn(window.ToInt64(), Native.IsEnglish(window), now, _settings.AutoReturnSeconds))
         {
-            if (!Native.SwitchExistingLayout(window, true) && !_layoutWarning)
+            if (!Native.SwitchExistingLayout(window, true, _settings.DisableCapsLockOnHebrew) && !_layoutWarning)
             {
                 _layoutWarning = true;
                 Report(new InvalidOperationException("layout"));

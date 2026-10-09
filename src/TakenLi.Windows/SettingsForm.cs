@@ -275,6 +275,7 @@ internal sealed class SettingsForm : Form
     private void BuildTimer(TableLayoutPanel stack)
     {
         var enabled = _ui.Check(_ui.T("לחזור לעברית אחרי הפסקה בהקלדה באנגלית", "Return to Hebrew after a pause in English typing"), _draft.AutoReturnEnabled);
+        enabled.Name = "AutoReturnEnabled";
         Add(stack, enabled);
         Add(stack, _ui.Label(_ui.T("זמן ההמתנה בשניות", "Wait time in seconds")));
         var delay = new NumericUpDown
@@ -287,6 +288,11 @@ internal sealed class SettingsForm : Form
         enabled.CheckedChanged += (_, _) => { _draft.AutoReturnEnabled = enabled.Checked; delay.Enabled = enabled.Checked; };
         Add(stack, delay);
         Add(stack, _ui.Paragraph(_ui.T("כל הקלדה מתחילה את הספירה מחדש. נעשה שימוש רק בפריסות שכבר מותקנות. החזרה חלה על החלון הפעיל.", "Each keystroke restarts the timer. Only existing layouts are used. The return applies to the active window.")));
+        var caps = _ui.Check(_ui.T("לכבות Caps Lock במעבר לעברית", "Turn off Caps Lock when switching to Hebrew"), _draft.DisableCapsLockOnHebrew);
+        caps.Name = "DisableCapsLockOnHebrew";
+        caps.CheckedChanged += (_, _) => _draft.DisableCapsLockOnHebrew = caps.Checked;
+        Add(stack, caps);
+        Add(stack, _ui.Paragraph(_ui.T("חל גם על מעבר לעברית באמצעות תיקון טקסט.", "Also applies when text correction switches to Hebrew.")));
         Add(stack, _ui.Label(_ui.T("תוכנות להחרגה (לא חובה)", "Excluded applications (optional)"), true));
         Add(stack, _ui.Paragraph(_ui.T("שם קובץ ההפעלה בכל שורה, למשל notepad.exe. בתוכנות אלה לא תהיה חזרה אוטומטית; פעולות התיקון יישארו זמינות.", "One executable name per line, e.g. notepad.exe. These apps will not return automatically; text actions remain available.")));
         var exclusions = new TextBox { Multiline = true, Height = 100, Dock = DockStyle.Top, ScrollBars = ScrollBars.Vertical, Text = string.Join(Environment.NewLine, _draft.ExcludedApplications), RightToLeft = RightToLeft.No, AccessibleName = _ui.T("תוכנות להחרגה", "Excluded applications") };

@@ -90,6 +90,7 @@ internal static class EditorChecks
                     var target = new IntPtr(snapshot.Window);
                     Native.SetForegroundWindow(target);
                     PumpUntil(() => Native.GetForegroundWindow() == target, TimeSpan.FromSeconds(3));
+                    if (index == 0) CheckCapsLock(target);
                     Clipboard.SetText("PREVIOUS CLIPBOARD — must never be edited");
                     var editor = new TextEditor();
                     Exception? failure = null;
@@ -144,6 +145,47 @@ internal static class EditorChecks
         var layouts = new IntPtr[Native.GetKeyboardLayoutList(0, null)];
         var count = Native.GetKeyboardLayoutList(layouts.Length, layouts);
         return layouts.Take(count).Any(layout => (layout.ToInt64() & 0xffff) == 0x040d);
+    }
+    private static void CheckCapsLock(IntPtr target)
+    {
+        var original = Native.CapsLockOn;
+        try
+        {
+            if (!Native.CapsLockOn) Native.SendKeys((0x14, false), (0x14, true));
+            PumpUntil(() => Native.CapsLockOn, TimeSpan.FromSeconds(2));
+            if (!Native.SwitchExistingLayout(target, false, true)) throw new InvalidOperationException("Existing English layout missing in Caps Lock check");
+            Application.DoEvents();
+            if (!Native.CapsLockOn) throw new InvalidOperationException("Switching to English must preserve Caps Lock");
+            if (HasHebrewLayout())
+            {
+                Native.SwitchExistingLayout(target, true, false);
+                Application.DoEvents();
+                if (!Native.CapsLockOn) throw new InvalidOperationException("Disabled preference must preserve Caps Lock");
+                Native.SwitchExistingLayout(target, true, true);
+                PumpUntil(() => !Native.CapsLockOn, TimeSpan.FromSeconds(2));
+                Native.SwitchExistingLayout(target, false, true);
+            }
+            else
+            {
+                if (Native.SwitchExistingLayout(target, true, true)) throw new InvalidOperationException("Missing Hebrew layout must not be reported as available");
+                if (!Native.CapsLockOn) throw new InvalidOperationException("Unavailable Hebrew layout must not turn Caps Lock off");
+                Console.WriteLine("Hebrew layout transition check not run: no Hebrew layout installed. No layout was added.");
+            }
+            Native.DisableCapsLockIfOn();
+            PumpUntil(() => !Native.CapsLockOn, TimeSpan.FromSeconds(2));
+            Native.DisableCapsLockIfOn();
+            Application.DoEvents();
+            if (Native.CapsLockOn) throw new InvalidOperationException("Disabling an already-off Caps Lock must leave it off");
+            Console.WriteLine("PASS Caps Lock: actual toggle off, already-off state, English and unavailable-layout behavior");
+        }
+        finally
+        {
+            if (Native.CapsLockOn != original)
+            {
+                Native.SendKeys((0x14, false), (0x14, true));
+                PumpUntil(() => Native.CapsLockOn == original, TimeSpan.FromSeconds(2));
+            }
+        }
     }
     private static void AwaitSnapshot(string directory, Func<Snapshot, bool> condition) => PumpUntil(() => File.Exists(Path.Combine(directory, "snapshot.json")) && condition(Read(directory)), TimeSpan.FromSeconds(4));
     private static void PumpUntil(Func<bool> done, TimeSpan timeout)

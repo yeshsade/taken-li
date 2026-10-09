@@ -20,6 +20,7 @@ internal static class Native
     [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool RegisterHotKey(IntPtr window, int id, uint modifiers, uint key);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool UnregisterHotKey(IntPtr window, int id);
     [DllImport("user32.dll")] internal static extern short GetAsyncKeyState(int key);
+    [DllImport("user32.dll")] internal static extern short GetKeyState(int key);
     [DllImport("user32.dll")] internal static extern uint GetClipboardSequenceNumber();
     [DllImport("user32.dll", SetLastError = true)] internal static extern uint SendInput(uint count, Input[] inputs, int size);
     [DllImport("user32.dll", SetLastError = true)] internal static extern IntPtr SetWindowsHookEx(int type, HookProc callback, IntPtr module, uint thread);
@@ -92,7 +93,15 @@ internal static class Native
 
     internal static bool IsEnglish(IntPtr window) => (Language(window) & 0x3ff) == 9;
 
-    internal static bool SwitchExistingLayout(IntPtr window, bool hebrew)
+    internal static bool CapsLockOn => (GetKeyState(0x14) & 1) != 0;
+
+    internal static void DisableCapsLockIfOn()
+    {
+        // Caps Lock is a toggle: sending it while already off would enable it.
+        if (CapsLockOn) SendKeys((0x14, false), (0x14, true));
+    }
+
+    internal static bool SwitchExistingLayout(IntPtr window, bool hebrew, bool disableCapsLockOnHebrew)
     {
         var count = GetKeyboardLayoutList(0, null);
         if (count <= 0) return false;
@@ -102,7 +111,11 @@ internal static class Native
         {
             var language = (ushort)(layouts[i].ToInt64() & 0xffff);
             if (hebrew ? language == 0x040d : (language & 0x3ff) == 9)
-                return PostMessage(window, WmInputLanguageChangeRequest, IntPtr.Zero, layouts[i]);
+            {
+                if (!PostMessage(window, WmInputLanguageChangeRequest, IntPtr.Zero, layouts[i])) return false;
+                if (hebrew && disableCapsLockOnHebrew && GetForegroundWindow() == window) DisableCapsLockIfOn();
+                return true;
+            }
         }
         return false;
     }

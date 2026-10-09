@@ -23,6 +23,7 @@ public sealed class AppSettings
     public string Language { get; set; } = "he";
     public bool AutoReturnEnabled { get; set; } = true;
     public int AutoReturnSeconds { get; set; } = 30;
+    public bool DisableCapsLockOnHebrew { get; set; } = true;
     public SelectionScope UnselectedScope { get; set; } = SelectionScope.CurrentLine;
     public bool StartWithWindows { get; set; }
     public bool ShowWelcome { get; set; } = true;

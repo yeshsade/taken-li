@@ -1,4 +1,5 @@
 using TakenLi.Core;
+using System.Text.Json;
 
 var checks = new (string Name, Action Check)[]
 {
@@ -20,6 +21,7 @@ var checks = new (string Name, Action Check)[]
     ("Empty input", () => { foreach (var action in Enum.GetValues<TextAction>()) Equal("", TextOperations.Apply("", action)); }),
     ("Default settings and hotkey labels", () => { var s = new AppSettings(); s.Validate(); Equal("F10", s.FixLayoutKey.Display); Equal("Shift+F10", s.SwapCaseKey.Display); Equal("F6", s.ReverseKey.Display); Equal(true, s.AutoReturnEnabled); Equal(30, s.AutoReturnSeconds); }),
     ("Independent draft settings", () => { var original = new AppSettings(); var draft = original.Copy(); draft.ExcludedApplications.Add("notepad.exe"); draft.Language = "en"; Equal(0, original.ExcludedApplications.Count); Equal("he", original.Language); }),
+    ("Caps Lock preference defaults on for existing settings and persists when disabled", () => { Equal(true, JsonSerializer.Deserialize<AppSettings>("{\"Language\":\"he\"}")!.DisableCapsLockOnHebrew); var original = new AppSettings { DisableCapsLockOnHebrew = false }; Equal(false, original.Copy().DisableCapsLockOnHebrew); }),
     ("Conflicting hotkeys are rejected", () => { var s = new AppSettings { ReverseKey = new(121) }; Throws(s.Validate); }),
     ("Unsafe unmodified typing keys are rejected", () => { var s = new AppSettings { ReverseKey = new(65) }; Throws(s.Validate); }),
     ("Invalid delay is rejected", () => { var s = new AppSettings { AutoReturnSeconds = 0 }; Throws(s.Validate); }),
