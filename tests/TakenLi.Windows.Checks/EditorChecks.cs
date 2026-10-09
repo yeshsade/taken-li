@@ -8,7 +8,7 @@ namespace TakenLi.Windows.Checks;
 // calling UI thread is not representative of the application's real workflow.
 internal static class EditorChecks
 {
-    private sealed record Scenario(string Text, int Start, int Length, string Expected, SelectionScope Scope, TextAction Action, bool Hotkey = false, bool SingleLine = false);
+    private sealed record Scenario(string Text, int Start, int Length, string Expected, SelectionScope Scope, TextAction Action, bool Hotkey = false, bool SingleLine = false, bool Qt = false);
     private sealed record Snapshot(long Window, string Text, int Start, int Length);
 
     internal static int Host(string directory)
@@ -68,6 +68,9 @@ internal static class EditorChecks
             new Scenario("MyFile.txt", 0, 6, "mYfILE.txt", SelectionScope.WholeField, TextAction.SwapCase, SingleLine: true),
             new Scenario("akuo", 4, 0, "שלום", SelectionScope.CurrentLine, TextAction.FixLayout, Hotkey: true),
             new Scenario("akuo other", 0, 4, "שלום other", SelectionScope.WholeField, TextAction.FixLayout, Hotkey: true),
+            new Scenario("akuo", 0, 4, "שלום", SelectionScope.CurrentLine, TextAction.FixLayout, Hotkey: true, SingleLine: true, Qt: true),
+            new Scenario("akuo other", 0, 4, "שלום other", SelectionScope.WholeField, TextAction.FixLayout, Hotkey: true, Qt: true),
+            new Scenario("Hello", 5, 0, "hELLO", SelectionScope.CurrentLine, TextAction.SwapCase, SingleLine: true, Qt: true),
             new Scenario("first\r\n\r\nlast", 7, 0, "first\r\n\r\nlast", SelectionScope.CurrentLine, TextAction.SwapCase)
         };
         var original = Clipboard.ContainsText() ? Clipboard.GetText() : null;
@@ -80,8 +83,8 @@ internal static class EditorChecks
                 Directory.CreateDirectory(directory);
                 var scenario = scenarios[index];
                 File.WriteAllText(Path.Combine(directory, "scenario.json"), JsonSerializer.Serialize(scenario));
-                var info = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false };
-                info.ArgumentList.Add("--editor-host");
+                var info = new ProcessStartInfo(scenario.Qt ? "python" : Environment.ProcessPath!) { UseShellExecute = false };
+                info.ArgumentList.Add(scenario.Qt ? Path.GetFullPath("tests/TakenLi.Windows.Checks/qt_editor_host.py") : "--editor-host");
                 info.ArgumentList.Add(directory);
                 using var process = Process.Start(info)!;
                 try
@@ -145,7 +148,11 @@ internal static class EditorChecks
         }
     }
 
-    private static Snapshot Read(string directory) => JsonSerializer.Deserialize<Snapshot>(File.ReadAllText(Path.Combine(directory, "snapshot.json")))!;
+    private static Snapshot Read(string directory)
+    {
+        using var stream = new FileStream(Path.Combine(directory, "snapshot.json"), FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        return JsonSerializer.Deserialize<Snapshot>(stream)!;
+    }
     private static bool HasHebrewLayout()
     {
         var layouts = new IntPtr[Native.GetKeyboardLayoutList(0, null)];
