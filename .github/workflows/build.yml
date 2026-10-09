@@ -17,7 +17,9 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install pinned Qt test fixture (not included in executable)
-        run: python -m pip install --require-hashes --only-binary=:all: -r tests/TakenLi.Windows.Checks/qt-windows-requirements.txt
+        run: >-
+          python -m pip install --require-hashes --only-binary=:all:
+          -r tests/TakenLi.Windows.Checks/qt-windows-requirements.txt
       - name: Check core behavior and publish self-contained application
         shell: pwsh
         run: ./scripts/Publish.ps1
