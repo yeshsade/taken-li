@@ -126,10 +126,19 @@ internal sealed class TrayContext : ApplicationContext
         }
         if (_idle.ShouldReturn(window.ToInt64(), Native.IsEnglish(window), now, _settings.AutoReturnSeconds))
         {
-            if (!Native.SwitchExistingLayout(window, true, _settings.DisableCapsLockOnHebrew) && !_layoutWarning)
+            try
             {
-                _layoutWarning = true;
-                Report(new InvalidOperationException("layout"));
+                if (!Native.SwitchExistingLayout(window, true, _settings.DisableCapsLockOnHebrew) && !_layoutWarning)
+                {
+                    _layoutWarning = true;
+                    Report(new InvalidOperationException("layout"));
+                }
+            }
+            catch (InvalidOperationException error)
+            {
+                // Input can be blocked by Windows. A timer callback must not
+                // terminate the app when the Caps Lock key cannot be sent.
+                if (!_layoutWarning) { _layoutWarning = true; Report(error); }
             }
         }
     }

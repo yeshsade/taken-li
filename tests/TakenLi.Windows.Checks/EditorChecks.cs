@@ -71,6 +71,7 @@ internal static class EditorChecks
             new Scenario("first\r\n\r\nlast", 7, 0, "first\r\n\r\nlast", SelectionScope.CurrentLine, TextAction.SwapCase)
         };
         var original = Clipboard.ContainsText() ? Clipboard.GetText() : null;
+        var originalCaps = Native.CapsLockOn;
         try
         {
             for (var index = 0; index < scenarios.Length; index++)
@@ -136,6 +137,11 @@ internal static class EditorChecks
         finally
         {
             if (original is not null) Clipboard.SetText(original);
+            if (Native.CapsLockOn != originalCaps)
+            {
+                Native.SendKeys((0x14, false), (0x14, true));
+                PumpUntil(() => Native.CapsLockOn == originalCaps, TimeSpan.FromSeconds(2));
+            }
         }
     }
 
