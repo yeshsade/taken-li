@@ -56,29 +56,25 @@ internal sealed class HotkeyWindow : NativeWindow, IDisposable
     public void Dispose() { Clear(); DestroyHandle(); }
 }
 
-internal sealed class TypingMonitor : IDisposable
+internal sealed class TypingMonitor
 {
-    private readonly Native.HookProc _callback;
-    private readonly IntPtr _hook;
+    private uint? _lastInputTick;
     internal event Action? Typed;
 
-    internal TypingMonitor()
+    internal void Poll()
     {
-        _callback = Callback;
-        _hook = Native.SetWindowsHookEx(13, _callback, Native.GetModuleHandle(null), 0);
-        if (_hook == IntPtr.Zero) throw new InvalidOperationException("hook");
-    }
-
-    private IntPtr Callback(int code, IntPtr wParam, IntPtr lParam)
-    {
-        if (code >= 0 && wParam.ToInt64() is Native.KeyDown or Native.SysKeyDown)
+        // Windows can silently remove a low-level keyboard hook after a timeout.
+        // Poll the session's activity timestamp instead: no key or text is read,
+        // and long UI/clipboard operations cannot disconnect this monitor.
+        // Mouse activity also postpones the return, conservatively.
+        if (!Native.TryGetLastInputTick(out var tick))
         {
-            var data = Marshal.PtrToStructure<Native.KeyboardHookData>(lParam);
-            // Track activity only: no text, key sequence or history is retained.
-            if ((data.Flags & Native.Injected) == 0) Typed?.Invoke();
+            // If activity cannot be checked, never switch under the user's hands.
+            Typed?.Invoke();
+            return;
         }
-        return Native.CallNextHookEx(_hook, code, wParam, lParam);
+        if (_lastInputTick == tick) return;
+        _lastInputTick = tick;
+        Typed?.Invoke();
     }
-
-    public void Dispose() => Native.UnhookWindowsHookEx(_hook);
 }

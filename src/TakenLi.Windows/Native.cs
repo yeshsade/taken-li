@@ -7,9 +7,6 @@ internal static class Native
 {
     internal const int WmHotkey = 0x0312;
     internal const int WmInputLanguageChangeRequest = 0x0050;
-    internal const int KeyDown = 0x0100;
-    internal const int SysKeyDown = 0x0104;
-    internal const uint Injected = 0x10;
 
     [DllImport("user32.dll")] internal static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool SetForegroundWindow(IntPtr window);
@@ -23,17 +20,22 @@ internal static class Native
     [DllImport("user32.dll")] internal static extern short GetKeyState(int key);
     [DllImport("user32.dll")] internal static extern uint GetClipboardSequenceNumber();
     [DllImport("user32.dll", SetLastError = true)] internal static extern uint SendInput(uint count, Input[] inputs, int size);
-    [DllImport("user32.dll", SetLastError = true)] internal static extern IntPtr SetWindowsHookEx(int type, HookProc callback, IntPtr module, uint thread);
-    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool UnhookWindowsHookEx(IntPtr hook);
-    [DllImport("user32.dll")] internal static extern IntPtr CallNextHookEx(IntPtr hook, int code, IntPtr wParam, IntPtr lParam);
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] internal static extern IntPtr GetModuleHandle(string? module);
-    internal delegate IntPtr HookProc(int code, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetLastInputInfo(ref LastInputInfo info);
 
     [StructLayout(LayoutKind.Sequential)]
-    internal struct KeyboardHookData
+    private struct LastInputInfo
     {
-        internal uint Key, Scan, Flags, Time;
-        internal UIntPtr ExtraInfo;
+        internal uint Size, Tick;
+    }
+
+    internal static bool TryGetLastInputTick(out uint tick)
+    {
+        var info = new LastInputInfo { Size = (uint)Marshal.SizeOf<LastInputInfo>() };
+        var success = GetLastInputInfo(ref info);
+        tick = info.Tick;
+        return success;
     }
 
     [StructLayout(LayoutKind.Sequential)]

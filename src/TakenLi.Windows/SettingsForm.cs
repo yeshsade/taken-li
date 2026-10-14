@@ -44,7 +44,7 @@ internal sealed class SettingsForm : Form
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var header = Ui.Table(2, 1);
         header.Padding = new Padding(28, 14, 28, 14);
@@ -116,17 +116,26 @@ internal sealed class SettingsForm : Form
         BuildPage(pageNames[_page]);
 
         var footer = Ui.Table(2, 1);
-        footer.Padding = new Padding(28, 14, 28, 14);
-        footer.ColumnStyles.Add(new ColumnStyle(_ui.Hebrew ? SizeType.Absolute : SizeType.Percent, _ui.Hebrew ? 222 : 100));
-        footer.ColumnStyles.Add(new ColumnStyle(_ui.Hebrew ? SizeType.Percent : SizeType.Absolute, _ui.Hebrew ? 100 : 222));
+        footer.Name = "SettingsFooter";
+        footer.AutoSize = true;
+        footer.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        footer.Padding = new Padding(28, 16, 28, 20);
+        footer.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        footer.ColumnStyles.Add(new ColumnStyle(_ui.Hebrew ? SizeType.AutoSize : SizeType.Percent, 100));
+        footer.ColumnStyles.Add(new ColumnStyle(_ui.Hebrew ? SizeType.Percent : SizeType.AutoSize, 100));
         var hint = _ui.Label(_ui.T("השינויים יחולו לאחר לחיצה על שמירה.", "Changes apply when you select Save."), height: 38);
         hint.Font = new Font("Segoe UI", 9);
         hint.ForeColor = Ui.Muted;
         footer.Controls.Add(hint, _ui.Column(0, 2), 0);
         var buttons = Ui.Table(2, 1);
-        buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        buttons.Name = "FooterButtons";
+        buttons.AutoSize = true;
+        buttons.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        buttons.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        buttons.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        buttons.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         var save = _ui.Button(_ui.T("שמירה", "Save"), true);
+        save.Name = "SaveButton";
         save.Anchor = AnchorStyles.None;
         save.Click += (_, _) =>
         {
@@ -134,6 +143,7 @@ internal sealed class SettingsForm : Form
             catch (Exception error) { _ui.ShowError(error, this); }
         };
         var cancel = _ui.Button(_ui.T("ביטול", "Cancel"));
+        cancel.Name = "CancelButton";
         cancel.Anchor = AnchorStyles.None;
         cancel.Click += (_, _) => Close();
         buttons.Controls.Add(save, _ui.Column(0, 2), 0);
@@ -287,7 +297,7 @@ internal sealed class SettingsForm : Form
         delay.ValueChanged += (_, _) => _draft.AutoReturnSeconds = (int)delay.Value;
         enabled.CheckedChanged += (_, _) => { _draft.AutoReturnEnabled = enabled.Checked; delay.Enabled = enabled.Checked; };
         Add(stack, delay);
-        Add(stack, _ui.Paragraph(_ui.T("כל הקלדה מתחילה את הספירה מחדש. נעשה שימוש רק בפריסות שכבר מותקנות. החזרה חלה על החלון הפעיל.", "Each keystroke restarts the timer. Only existing layouts are used. The return applies to the active window.")));
+        Add(stack, _ui.Paragraph(_ui.T("כל הקלדה מתחילה את הספירה מחדש. גם פעילות בעכבר דוחה את החזרה. נעשה שימוש רק בפריסות שכבר מותקנות. החזרה חלה על החלון הפעיל.", "Each keystroke restarts the timer. Mouse activity also postpones the return. Only existing layouts are used. The return applies to the active window.")));
         var caps = _ui.Check(_ui.T("לכבות Caps Lock במעבר לעברית", "Turn off Caps Lock when switching to Hebrew"), _draft.DisableCapsLockOnHebrew);
         caps.Name = "DisableCapsLockOnHebrew";
         caps.CheckedChanged += (_, _) => _draft.DisableCapsLockOnHebrew = caps.Checked;

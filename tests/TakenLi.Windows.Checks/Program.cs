@@ -23,6 +23,7 @@ internal static class Program
             foreach (var language in new[] { "he", "en" })
             {
                 CheckSettings(language);
+                CheckScaledFooter(language);
                 CheckWelcome(language);
                 using var key = new KeyDialog(new Ui(language), new Ui(language).ActionName(TextAction.FixLayout), new Hotkey(121));
                 Open(key);
@@ -33,6 +34,7 @@ internal static class Program
             Assert(Contrast(Ui.Ink, Ui.Surface) >= 7, "Main text contrast >= 7:1");
             Assert(Contrast(Ui.Muted, Ui.Surface) >= 4.5, "Secondary text contrast >= 4.5:1");
             Assert(Contrast(Color.White, Ui.Accent) >= 4.5, "Primary button contrast >= 4.5:1");
+            CheckInputActivity();
             EditorChecks.Run();
             Console.WriteLine($"PASS: {_checks} native Windows UI checks; screenshots: {_output}");
             return 0;
@@ -70,6 +72,7 @@ internal static class Program
                 var heading = Find<Label>(form, "PageHeading");
                 Assert(heading.TextAlign == (language == "he" ? ContentAlignment.MiddleRight : ContentAlignment.MiddleLeft), "Page heading alignment");
                 CheckText(form);
+                CheckFooter(form);
                 foreach (var check in Descendants(pane).OfType<CheckBox>())
                 {
                     Assert(check.Anchor == (language == "he" ? AnchorStyles.Right : AnchorStyles.Left), "Checkbox anchored to reading edge");
@@ -125,6 +128,94 @@ internal static class Program
         Descendants(switcher).OfType<ComboBox>().Single().SelectedIndex = language == "he" ? 1 : 0;
         Pump(switcher);
         Assert(switcher.Text == (language == "he" ? "Settings" : "הגדרות"), "Changing language rebuilds the correct interface");
+    }
+
+    private static void CheckFooter(Form form)
+    {
+        var footer = Find<TableLayoutPanel>(form, "SettingsFooter");
+        var bounds = new Rectangle(form.PointToClient(footer.PointToScreen(Point.Empty)), footer.Size);
+        Assert(form.ClientRectangle.Contains(bounds), "Entire footer fits within the client area");
+        foreach (var name in new[] { "SaveButton", "CancelButton" })
+        {
+            var button = Find<Button>(form, name);
+            for (Control? parent = button.Parent; parent is not null; parent = parent.Parent)
+            {
+                var rectangle = new Rectangle(parent.PointToClient(button.PointToScreen(Point.Empty)), button.Size);
+                Assert(parent.ClientRectangle.Contains(rectangle), name + " is not clipped by " + parent.GetType().Name);
+            }
+            var bottom = form.PointToClient(button.PointToScreen(new Point(0, button.Height))).Y;
+            Assert(form.ClientSize.Height - bottom >= 16, name + " has clear space below it");
+            var text = TextRenderer.MeasureText(button.Text, button.Font);
+            Assert(button.Width >= text.Width + 12 && button.Height >= text.Height + 8, name + " text fits");
+        }
+    }
+
+    private static void CheckScaledFooter(string language)
+    {
+        // Exercise Windows control scaling and enlarged fonts without changing
+        // the CI machine's display settings. Real monitor DPI remains a manual check.
+        foreach (var factor in new[] { 1.25f, 1.5f, 2f })
+        {
+            using var form = new SettingsForm(new AppSettings { Language = language }, _ => { }, () => { });
+            Open(form);
+            form.Scale(new SizeF(factor, factor));
+            form.ClientSize = new Size((int)(854 * factor), (int)(601 * factor));
+            Pump(form);
+            CheckFooter(form);
+            Capture(form, $"settings-footer-{language}-{factor * 100:0}");
+        }
+    }
+
+    private static void CheckInputActivity()
+    {
+        using var form = new Form { Text = "TakenLi input activity check", ClientSize = new Size(400, 120) };
+        var editor = new TextBox { Dock = DockStyle.Fill, Multiline = true };
+        form.Controls.Add(editor);
+        Open(form);
+        form.Activate();
+        editor.Focus();
+        Pump(form);
+        Assert(Native.GetForegroundWindow() == form.Handle, "Activity fixture owns foreground before sending keys");
+        var monitor = new TypingMonitor();
+        var idle = new IdleReturnPolicy();
+        var notifications = 0;
+        monitor.Typed += () => { notifications++; idle.Typed(Environment.TickCount64); };
+        monitor.Poll();
+        var initial = notifications;
+        monitor.Poll();
+        Assert(notifications == initial, "Polling unchanged input does not restart the timer");
+        idle.ShouldReturn(1, true, Environment.TickCount64, 1);
+        var start = Environment.TickCount64;
+        while (Environment.TickCount64 - start < 1600)
+        {
+            Assert(Native.GetForegroundWindow() == form.Handle, "Input stays inside the isolated fixture");
+            Native.SendKeys((0x41, false), (0x41, true));
+            Pump(form);
+            monitor.Poll();
+            Assert(!idle.ShouldReturn(1, true, Environment.TickCount64, 1), "Continuous typing prevents return past the configured delay");
+            Thread.Sleep(80);
+        }
+        Assert(notifications - initial >= 10 && editor.TextLength >= 10, "Real Windows key events reach the editor and activity monitor");
+        var returned = false;
+        start = Environment.TickCount64;
+        while (Environment.TickCount64 - start < 1600)
+        {
+            Pump(form);
+            monitor.Poll();
+            if (idle.ShouldReturn(1, true, Environment.TickCount64, 1)) { returned = true; break; }
+            Thread.Sleep(40);
+        }
+        Assert(returned, "Return becomes due after typing stops for the full delay");
+        // A blocked UI thread cannot remove this polling monitor. Activity that
+        // arrives before the next timer tick must postpone an already-due return.
+        idle.Reset(Environment.TickCount64);
+        idle.ShouldReturn(1, true, Environment.TickCount64, 1);
+        Thread.Sleep(1200);
+        Native.SendKeys((0x41, false), (0x41, true));
+        Pump(form);
+        monitor.Poll();
+        Assert(!idle.ShouldReturn(1, true, Environment.TickCount64, 1), "Input after a delayed UI tick prevents an overdue return");
+        Console.WriteLine("PASS: Windows activity polling, continuous typing and delayed-tick recovery");
     }
 
     private static void CheckWelcome(string language)

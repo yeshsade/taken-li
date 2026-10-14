@@ -119,6 +119,7 @@ internal sealed class TrayContext : ApplicationContext
             return;
         }
         var now = Environment.TickCount64;
+        _typing.Poll();
         if (_paused || _editor.Busy || !_settings.AutoReturnEnabled || !External(window) || IsExcluded(window))
         {
             _idle.Reset(now);
@@ -252,7 +253,6 @@ internal sealed class TrayContext : ApplicationContext
         _tray.Dispose();
         _icon.Dispose();
         _hotkeys.Dispose();
-        _typing.Dispose();
         _timer.Dispose();
         base.ExitThreadCore();
     }
