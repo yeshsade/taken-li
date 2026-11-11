@@ -11,6 +11,7 @@ namespace TakenLi.Windows;
 
 internal sealed class TextEditor
 {
+    internal event Action<IntPtr, IntPtr>? LayoutRequested;
     internal bool Busy { get; private set; }
 
     internal async Task EditAsync(IntPtr target, TextAction action, AppSettings settings)
@@ -69,6 +70,7 @@ internal sealed class TextEditor
                 var language = TextOperations.ResultLanguage(result);
                 if (language is not null && !Native.SwitchExistingLayout(target, language == InputLanguage.Hebrew, settings.DisableCapsLockOnHebrew))
                     throw new InvalidOperationException("layout");
+                if (language is not null) LayoutRequested?.Invoke(target, Native.ExistingLayout(language == InputLanguage.Hebrew));
             }
         }
         catch (ExternalException) { throw new InvalidOperationException("clipboard"); }

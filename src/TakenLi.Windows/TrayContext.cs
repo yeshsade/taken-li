@@ -13,6 +13,8 @@ internal sealed class TrayContext : ApplicationContext
     private readonly HotkeyWindow _hotkeys = new();
     private readonly TextEditor _editor = new();
     private readonly IdleReturnPolicy _idle = new();
+    private readonly ApplicationLayouts _layouts = new();
+    private IntPtr _observedWindow;
     private readonly TypingMonitor _typing;
     private readonly NotifyIcon _tray;
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 250 };
@@ -31,6 +33,11 @@ internal sealed class TrayContext : ApplicationContext
     internal TrayContext(AppSettings settings)
     {
         _settings = settings;
+        _editor.LayoutRequested += (window, layout) =>
+        {
+            if (ApplicationName(window) is string application)
+                _layouts.ExplicitChange(application, layout.ToInt64(), Environment.TickCount64);
+        };
         _typing = new TypingMonitor();
         _typing.Typed += () => _idle.Typed(Environment.TickCount64);
         _icon = MakeIcon();
@@ -120,6 +127,19 @@ internal sealed class TrayContext : ApplicationContext
         }
         var now = Environment.TickCount64;
         _typing.Poll();
+        if (!_paused && !_editor.Busy)
+        {
+            var application = External(window) ? ApplicationName(window) : null;
+            var restore = _layouts.Observe(application, window.ToInt64(), Native.Layout(window).ToInt64(), now);
+            if (_observedWindow != window || restore is not null) _idle.Reset(now);
+            _observedWindow = window;
+            if (restore is long layout)
+            {
+                try { Native.RestoreExistingLayout(window, new IntPtr(layout), _settings.DisableCapsLockOnHebrew); }
+                catch (InvalidOperationException error) { Report(error); }
+                return;
+            }
+        }
         if (_paused || _editor.Busy || !_settings.AutoReturnEnabled || !External(window) || IsExcluded(window))
         {
             _idle.Reset(now);
@@ -129,7 +149,10 @@ internal sealed class TrayContext : ApplicationContext
         {
             try
             {
-                if (!Native.SwitchExistingLayout(window, true, _settings.DisableCapsLockOnHebrew) && !_layoutWarning)
+                var hebrew = Native.ExistingLayout(true);
+                if (Native.SwitchExistingLayout(window, true, _settings.DisableCapsLockOnHebrew))
+                    _layouts.AutomaticReturn(hebrew.ToInt64(), now);
+                else if (!_layoutWarning)
                 {
                     _layoutWarning = true;
                     Report(new InvalidOperationException("layout"));
@@ -144,9 +167,8 @@ internal sealed class TrayContext : ApplicationContext
         }
     }
 
-    private bool IsExcluded(IntPtr window)
+    private string? ApplicationName(IntPtr window)
     {
-        if (_settings.ExcludedApplications.Count == 0) return false;
         Native.GetWindowThreadProcessId(window, out var processId);
         if (_lastProcess != processId)
         {
@@ -154,7 +176,13 @@ internal sealed class TrayContext : ApplicationContext
             try { using var process = Process.GetProcessById((int)processId); _lastProcessName = process.ProcessName + ".exe"; }
             catch (Exception) { _lastProcessName = null; }
         }
-        return _settings.ExcludedApplications.Any(x => string.Equals(x, _lastProcessName, StringComparison.OrdinalIgnoreCase));
+        return _lastProcessName;
+    }
+
+    private bool IsExcluded(IntPtr window)
+    {
+        var name = ApplicationName(window);
+        return _settings.ExcludedApplications.Any(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase));
     }
 
     private void TogglePause()

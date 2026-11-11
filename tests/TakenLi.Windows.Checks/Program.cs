@@ -34,6 +34,7 @@ internal static class Program
             Assert(Contrast(Ui.Ink, Ui.Surface) >= 7, "Main text contrast >= 7:1");
             Assert(Contrast(Ui.Muted, Ui.Surface) >= 4.5, "Secondary text contrast >= 4.5:1");
             Assert(Contrast(Color.White, Ui.Accent) >= 4.5, "Primary button contrast >= 4.5:1");
+            CheckApplicationLayouts();
             CheckInputActivity();
             EditorChecks.Run();
             Console.WriteLine($"PASS: {_checks} native Windows UI checks; screenshots: {_output}");
@@ -45,6 +46,41 @@ internal static class Program
             Console.Error.WriteLine(error);
             foreach (Form form in Application.OpenForms) Capture(form, "failure-" + form.GetType().Name);
             return 1;
+        }
+    }
+
+    private static void CheckApplicationLayouts()
+    {
+        var count = Native.GetKeyboardLayoutList(0, null);
+        var before = new IntPtr[count];
+        Native.GetKeyboardLayoutList(count, before);
+        using var form = new Form { Text = "Layout memory Windows check" };
+        Open(form);
+        form.Activate();
+        Pump(form);
+        var original = Native.Layout(form.Handle);
+        try
+        {
+            foreach (var layout in before)
+            {
+                Assert(Native.RestoreExistingLayout(form.Handle, layout, false), "Request only an installed exact HKL");
+                for (var attempt = 0; attempt < 40 && Native.Layout(form.Handle) != layout; attempt++)
+                {
+                    Application.DoEvents();
+                    Thread.Sleep(25);
+                }
+                Assert(Native.Layout(form.Handle) == layout, "Windows applied the remembered exact layout");
+            }
+            Assert(!Native.RestoreExistingLayout(form.Handle, new IntPtr(0x12345678), false), "Unavailable HKL is rejected");
+            var after = new IntPtr[Native.GetKeyboardLayoutList(0, null)];
+            Native.GetKeyboardLayoutList(after.Length, after);
+            Assert(before.OrderBy(x => x.ToInt64()).SequenceEqual(after.OrderBy(x => x.ToInt64())), "Restoration does not add layouts");
+            if (before.Length < 2) Console.WriteLine("SKIP cross-language restoration: fewer than two layouts installed; no layouts added.");
+        }
+        finally
+        {
+            Native.RestoreExistingLayout(form.Handle, original, false);
+            Pump(form);
         }
     }
 

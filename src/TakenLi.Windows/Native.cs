@@ -93,6 +93,31 @@ internal static class Native
         return (ushort)(GetKeyboardLayout(thread).ToInt64() & 0xffff);
     }
 
+    internal static IntPtr Layout(IntPtr window) => GetKeyboardLayout(GetWindowThreadProcessId(window, out _));
+
+    internal static IntPtr ExistingLayout(bool hebrew)
+    {
+        var layouts = new IntPtr[Math.Max(0, GetKeyboardLayoutList(0, null))];
+        var count = GetKeyboardLayoutList(layouts.Length, layouts);
+        for (var i = 0; i < count; i++)
+        {
+            var language = (ushort)(layouts[i].ToInt64() & 0xffff);
+            if (hebrew ? language == 0x040d : (language & 0x3ff) == 9) return layouts[i];
+        }
+        return IntPtr.Zero;
+    }
+
+    internal static bool RestoreExistingLayout(IntPtr window, IntPtr layout, bool disableCapsLock)
+    {
+        if (GetForegroundWindow() != window) return false;
+        var layouts = new IntPtr[Math.Max(0, GetKeyboardLayoutList(0, null))];
+        var count = GetKeyboardLayoutList(layouts.Length, layouts);
+        if (Array.IndexOf(layouts, layout, 0, Math.Max(0, count)) < 0) return false;
+        if (!PostMessage(window, WmInputLanguageChangeRequest, IntPtr.Zero, layout)) return false;
+        if ((layout.ToInt64() & 0xffff) == 0x040d && disableCapsLock) DisableCapsLockIfOn();
+        return true;
+    }
+
     internal static bool IsEnglish(IntPtr window) => (Language(window) & 0x3ff) == 9;
 
     internal static bool CapsLockOn => (GetKeyState(0x14) & 1) != 0;

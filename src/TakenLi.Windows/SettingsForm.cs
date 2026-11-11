@@ -298,13 +298,14 @@ internal sealed class SettingsForm : Form
         enabled.CheckedChanged += (_, _) => { _draft.AutoReturnEnabled = enabled.Checked; delay.Enabled = enabled.Checked; };
         Add(stack, delay);
         Add(stack, _ui.Paragraph(_ui.T("כל הקלדה מתחילה את הספירה מחדש. גם פעילות בעכבר דוחה את החזרה. נעשה שימוש רק בפריסות שכבר מותקנות. החזרה חלה על החלון הפעיל.", "Each keystroke restarts the timer. Mouse activity also postpones the return. Only existing layouts are used. The return applies to the active window.")));
+        Add(stack, _ui.Paragraph(_ui.T("שפת המקלדת זכורה לכל תוכנה כל עוד TakenLi פועלת, גם כשהטיימר כבוי. בחזרה לתוכנה השפה משוחזרת וההמתנה מתחילה מחדש. מעבר של הטיימר לעברית אינו מחליף את השפה הזכורה.", "The keyboard layout is remembered per application while TakenLi is running, even with the timer off. Returning restores the layout and restarts the wait. A timer return to Hebrew does not replace the remembered layout.")));
         var caps = _ui.Check(_ui.T("לכבות Caps Lock במעבר לעברית", "Turn off Caps Lock when switching to Hebrew"), _draft.DisableCapsLockOnHebrew);
         caps.Name = "DisableCapsLockOnHebrew";
         caps.CheckedChanged += (_, _) => _draft.DisableCapsLockOnHebrew = caps.Checked;
         Add(stack, caps);
         Add(stack, _ui.Paragraph(_ui.T("חל גם על מעבר לעברית באמצעות תיקון טקסט.", "Also applies when text correction switches to Hebrew.")));
         Add(stack, _ui.Label(_ui.T("תוכנות להחרגה (לא חובה)", "Excluded applications (optional)"), true));
-        Add(stack, _ui.Paragraph(_ui.T("שם קובץ ההפעלה בכל שורה, למשל notepad.exe. בתוכנות אלה לא תהיה חזרה אוטומטית; פעולות התיקון יישארו זמינות.", "One executable name per line, e.g. notepad.exe. These apps will not return automatically; text actions remain available.")));
+        Add(stack, _ui.Paragraph(_ui.T("שם קובץ ההפעלה בכל שורה, למשל ChatGPT.exe, eclipse.exe או WhatsApp.exe. בתוכנות אלה לא תהיה חזרה אוטומטית; פעולות התיקון יישארו זמינות.", "One executable name per line, e.g. ChatGPT.exe, eclipse.exe or WhatsApp.exe. These apps will not return automatically; text actions remain available.")));
         var exclusions = new TextBox { Multiline = true, Height = 100, Dock = DockStyle.Top, ScrollBars = ScrollBars.Vertical, Text = string.Join(Environment.NewLine, _draft.ExcludedApplications), RightToLeft = RightToLeft.No, AccessibleName = _ui.T("תוכנות להחרגה", "Excluded applications") };
         exclusions.TextChanged += (_, _) => _draft.ExcludedApplications = exclusions.Lines.Select(x => x.Trim()).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         Add(stack, exclusions);

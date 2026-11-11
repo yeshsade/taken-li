@@ -3,6 +3,42 @@ using System.Text.Json;
 
 var checks = new (string Name, Action Check)[]
 {
+    ("Per-app layout restoration survives automatic Hebrew", () => {
+        var p = new ApplicationLayouts();
+        Equal<long?>(null, p.Observe("ChatGPT.exe", 1, 9, 0));
+        p.AutomaticReturn(13, 1000);
+        p.Observe("ChatGPT.exe", 1, 9, 1250); // old layout before Windows processes request
+        p.Observe("ChatGPT.exe", 1, 13, 1500);
+        p.Observe("eclipse.exe", 2, 13, 31000);
+        Equal<long?>(9, p.Observe("chatgpt.EXE", 3, 13, 32000));
+        p.Observe("ChatGPT.exe", 3, 13, 32250); // asynchronous request still pending
+        p.Observe("ChatGPT.exe", 3, 9, 32500);
+        p.Observe("WhatsApp.exe", 4, 13, 33000);
+        Equal<long?>(9, p.Observe("ChatGPT.exe", 1, 13, 34000));
+    }),
+    ("Manual layout and explicit correction replace memory", () => {
+        var p = new ApplicationLayouts();
+        p.Observe("a.exe", 1, 9, 0);
+        p.AutomaticReturn(13, 1000);
+        p.Observe("a.exe", 1, 13, 1000);
+        p.ExplicitChange("a.exe", 13, 1100);
+        p.Observe("a.exe", 1, 13, 1200);
+        p.Observe(null, 0, 0, 1300);
+        Equal<long?>(13, p.Observe("a.exe", 1, 9, 1400));
+        p.Observe("a.exe", 1, 13, 1500);
+        p.Observe("a.exe", 1, 9, 1600);
+        p.Observe("b.exe", 2, 13, 1700);
+        Equal<long?>(9, p.Observe("a.exe", 1, 13, 1800));
+    }),
+    ("Unavailable restoration times out without repeated requests", () => {
+        var p = new ApplicationLayouts();
+        p.Observe("a.exe", 1, 9, 0);
+        p.Observe(null, 0, 0, 1);
+        Equal<long?>(9, p.Observe("a.exe", 1, 13, 100));
+        Equal<long?>(null, p.Observe("a.exe", 1, 13, 2100));
+        p.Observe(null, 0, 0, 2200);
+        Equal<long?>(null, p.Observe("a.exe", 1, 13, 2300));
+    }),
     ("English to Hebrew", () => Equal("שלום", TextOperations.FixLayout("akuo"))),
     ("Hebrew to English", () => Equal("akuo", TextOperations.FixLayout("שלום"))),
     ("Mixed languages flip independently", () => Equal("akuo שלום", TextOperations.FixLayout("שלום akuo"))),
