@@ -137,7 +137,7 @@ internal sealed class TrayContext : ApplicationContext
                         Native.GetWindowThreadProcessId(window, out var id);
                         using var process = Process.GetProcessById((int)id);
                         var version = process.MainModule?.FileVersionInfo;
-                        var product = string.IsNullOrWhiteSpace(version?.ProductName) ? version?.FileDescription : version.ProductName;
+                        var product = string.IsNullOrWhiteSpace(version?.FileDescription) ? version?.ProductName : version.FileDescription;
                         if (!string.IsNullOrWhiteSpace(product)) _lastTimerApplication = new ApplicationTarget(executable!, product);
                     }
                     catch (Exception) { /* The executable name is a readable fallback. */ }
