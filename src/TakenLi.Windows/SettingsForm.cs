@@ -304,6 +304,7 @@ internal sealed class SettingsForm : Form
         caps.CheckedChanged += (_, _) => _draft.DisableCapsLockOnHebrew = caps.Checked;
         Add(stack, caps);
         Add(stack, _ui.Paragraph(_ui.T("חל גם על מעבר לעברית באמצעות תיקון טקסט.", "Also applies when text correction switches to Hebrew.")));
+        Add(stack, _ui.Paragraph(_ui.T("בלי להקליד שם: עברו לתוכנה הרצויה ופתחו את תפריט הסמל ליד השעון. ודאו ששם התוכנה מופיע ובחרו לכבות או להפעיל עבורה חזרה אוטומטית לעברית. השינוי נשמר מיד.", "Without typing a name: switch to the app you want and open the tray menu. Check its name, then turn automatic return off or on for that app. The change is saved immediately.")));
         Add(stack, _ui.Label(_ui.T("תוכנות להחרגה (לא חובה)", "Excluded applications (optional)"), true));
         Add(stack, _ui.Paragraph(_ui.T("שם קובץ ההפעלה בכל שורה, למשל ChatGPT.exe, eclipse.exe או WhatsApp.exe. בתוכנות אלה לא תהיה חזרה אוטומטית; פעולות התיקון יישארו זמינות.", "One executable name per line, e.g. ChatGPT.exe, eclipse.exe or WhatsApp.exe. These apps will not return automatically; text actions remain available.")));
         var exclusions = new TextBox { Multiline = true, Height = 100, Dock = DockStyle.Top, ScrollBars = ScrollBars.Vertical, Text = string.Join(Environment.NewLine, _draft.ExcludedApplications), RightToLeft = RightToLeft.No, AccessibleName = _ui.T("תוכנות להחרגה", "Excluded applications") };

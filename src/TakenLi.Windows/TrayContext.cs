@@ -27,6 +27,8 @@ internal sealed class TrayContext : ApplicationContext
     private SettingsForm? _settingsForm;
     private WelcomeForm? _welcome;
     private IntPtr _lastExternalWindow;
+    private IntPtr _lastTimerWindow;
+    private ApplicationTarget? _lastTimerApplication;
     private uint _lastProcess;
     private string? _lastProcessName;
 
@@ -82,6 +84,9 @@ internal sealed class TrayContext : ApplicationContext
             menu.Items.Add(item);
         }
         menu.Items.Add(new ToolStripSeparator());
+        ApplicationTimerMenu.AddTo(menu, ui, () => _lastTimerApplication, () => _settings,
+            SaveApplicationTimer, Report, () => !_closing && _settingsForm is null);
+        menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(ui.T("הגדרות", "Settings"), null, (_, _) => ShowSettings());
         menu.Items.Add(ui.T("הסבר", "Help"), null, (_, _) => ShowWelcome());
         menu.Items.Add(ui.T(_paused ? "חידוש הפעולה" : "השהיה", _paused ? "Resume" : "Pause"), null, (_, _) => TogglePause());
@@ -117,7 +122,28 @@ internal sealed class TrayContext : ApplicationContext
     private void Tick(object? sender, EventArgs args)
     {
         var window = Native.GetForegroundWindow();
-        if (External(window)) _lastExternalWindow = window;
+        if (External(window))
+        {
+            _lastExternalWindow = window;
+            if (window != _lastTimerWindow && !Native.IsDesktopOrTaskbar(window) && !(_tray.ContextMenuStrip?.Visible ?? false))
+            {
+                _lastTimerWindow = window;
+                var executable = ApplicationName(window);
+                _lastTimerApplication = executable is null ? null : new ApplicationTarget(executable, executable[..^4]);
+                if (_lastTimerApplication is not null)
+                {
+                    try
+                    {
+                        Native.GetWindowThreadProcessId(window, out var id);
+                        using var process = Process.GetProcessById((int)id);
+                        var version = process.MainModule?.FileVersionInfo;
+                        var product = string.IsNullOrWhiteSpace(version?.ProductName) ? version?.FileDescription : version.ProductName;
+                        if (!string.IsNullOrWhiteSpace(product)) _lastTimerApplication = new ApplicationTarget(executable!, product);
+                    }
+                    catch (Exception) { /* The executable name is a readable fallback. */ }
+                }
+            }
+        }
         if (_firstTick)
         {
             _firstTick = false;
@@ -195,6 +221,14 @@ internal sealed class TrayContext : ApplicationContext
             RefreshMenu();
         }
         catch (Exception error) { Report(error); }
+    }
+
+    private void SaveApplicationTimer(AppSettings next)
+    {
+        // Only the exclusion changes: do not touch Startup or re-register keys.
+        SettingsStore.Save(next);
+        _settings = next;
+        _idle.Reset(Environment.TickCount64);
     }
 
     private void SaveSettings(AppSettings next)

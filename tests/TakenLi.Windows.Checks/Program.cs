@@ -22,6 +22,7 @@ internal static class Program
         {
             foreach (var language in new[] { "he", "en" })
             {
+                CheckApplicationTimerMenu(language);
                 CheckSettings(language);
                 CheckScaledFooter(language);
                 CheckWelcome(language);
@@ -47,6 +48,69 @@ internal static class Program
             foreach (Form form in Application.OpenForms) Capture(form, "failure-" + form.GetType().Name);
             return 1;
         }
+    }
+
+    private static void CheckApplicationTimerMenu(string language)
+    {
+        Assert(Native.IsDesktopOrTaskbarClass("Shell_TrayWnd") && Native.IsDesktopOrTaskbarClass("NotifyIconOverflowWindow") && Native.IsDesktopOrTaskbarClass("WorkerW"), "Taskbar, overflow and desktop do not replace the selected application");
+        Assert(!Native.IsDesktopOrTaskbarClass("CabinetWClass"), "File Explorer application windows remain selectable");
+        var current = new AppSettings { Language = language };
+        current.ExcludedApplications.Add("other.exe");
+        ApplicationTarget? target = new("eclipse.exe", "Eclipse");
+        var editable = true;
+        var failSave = false;
+        var errors = 0;
+        var saves = 0;
+        using var menu = new ContextMenuStrip { RightToLeft = new Ui(language).Direction };
+        ApplicationTimerMenu.AddTo(menu, new Ui(language), () => target, () => current, next =>
+        {
+            if (failSave) throw new IOException("simulated save failure");
+            current = next;
+            saves++;
+        }, _ => errors++, () => editable);
+        var action = (ToolStripMenuItem)menu.Items["ApplicationTimerAction"]!;
+        void OpenMenu() { menu.Show(new Point(60, 60)); Application.DoEvents(); }
+        OpenMenu();
+        Assert(menu.Items["ApplicationName"]!.Text == "Eclipse", "Tray menu shows the selected app separately from RTL text");
+        Assert(menu.Items["ApplicationName"]!.RightToLeft == RightToLeft.No, "Application name stays LTR");
+        using (var image = new Bitmap(menu.Width, menu.Height))
+        {
+            menu.DrawToBitmap(image, new Rectangle(Point.Empty, menu.Size));
+            image.Save(Path.Combine(_output, "tray-menu-" + language + ".png"), ImageFormat.Png);
+        }
+        target = new("WhatsApp.exe", "WhatsApp"); // focus moves while menu is open
+        action.PerformClick();
+        menu.Close();
+        Assert(current.ExcludedApplications.Contains("eclipse.exe") && !current.ExcludedApplications.Contains("WhatsApp.exe"), "Click applies to the displayed app even after focus changes");
+        Assert(current.ExcludedApplications.Contains("other.exe") && current.AutoReturnEnabled, "Other exclusions and the global timer stay unchanged");
+        Assert(current.FixLayoutKey == new Hotkey(121), "Text action shortcuts stay unchanged");
+        Assert(current.Copy().ExcludedApplications.Contains("eclipse.exe"), "Quick exclusion survives settings serialization");
+        target = new("ECLIPSE.EXE", "Eclipse");
+        OpenMenu();
+        action.PerformClick();
+        menu.Close();
+        Assert(!current.ExcludedApplications.Any(x => x.Equals("eclipse.exe", StringComparison.OrdinalIgnoreCase)), "Re-enabling removes matching exclusions without case sensitivity");
+        Assert(saves == 2, "Both quick changes save immediately");
+        failSave = true;
+        OpenMenu();
+        action.PerformClick();
+        menu.Close();
+        Assert(errors == 1 && !current.ExcludedApplications.Contains("ECLIPSE.EXE"), "A failed save reports an error and leaves the current setting unchanged");
+        failSave = false;
+        target = null;
+        OpenMenu();
+        Assert(!action.Enabled, "No target disables the quick action");
+        menu.Close();
+        target = new("eclipse.exe", "Eclipse");
+        editable = false;
+        OpenMenu();
+        Assert(!action.Enabled, "Open settings draft disables quick edits");
+        menu.Close();
+        editable = true;
+        current.AutoReturnEnabled = false;
+        OpenMenu();
+        Assert(menu.Items["GlobalTimerOff"]!.Visible, "Menu explains when the global timer is disabled");
+        menu.Close();
     }
 
     private static void CheckApplicationLayouts()

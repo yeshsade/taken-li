@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace TakenLi.Windows;
 
@@ -29,6 +30,20 @@ internal static class Native
     {
         internal uint Size, Tick;
     }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetClassName(IntPtr window, StringBuilder name, int capacity);
+
+    internal static bool IsDesktopOrTaskbar(IntPtr window)
+    {
+        var name = new StringBuilder(256);
+        GetClassName(window, name, name.Capacity);
+        return IsDesktopOrTaskbarClass(name.ToString());
+    }
+
+    internal static bool IsDesktopOrTaskbarClass(string name) => name is
+        "Shell_TrayWnd" or "Shell_SecondaryTrayWnd" or "Progman" or "WorkerW" or
+        "NotifyIconOverflowWindow" or "TopLevelWindowForOverflowXamlIsland" or "XamlExplorerHostIslandWindow";
 
     internal static bool TryGetLastInputTick(out uint tick)
     {
