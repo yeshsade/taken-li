@@ -1,5 +1,7 @@
 using System;
 using System.Diagnostics;
+using System.IO;
+using System.Text.Json;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
@@ -13,7 +15,9 @@ internal sealed class TrayContext : ApplicationContext
     private readonly HotkeyWindow _hotkeys = new();
     private readonly TextEditor _editor = new();
     private readonly IdleReturnPolicy _idle = new();
-    private readonly ApplicationLayouts _layouts = new();
+    private readonly ApplicationLayouts _layouts;
+    private readonly LayoutInputMonitor _layoutInput;
+    private bool _layoutSaveWarning;
     private IntPtr _observedWindow;
     private readonly TypingMonitor _typing;
     private readonly NotifyIcon _tray;
@@ -35,16 +39,23 @@ internal sealed class TrayContext : ApplicationContext
     internal TrayContext(AppSettings settings)
     {
         _settings = settings;
+        _layouts = new ApplicationLayouts(LoadRememberedLayouts(), SaveRememberedLayouts);
         _editor.LayoutRequested += (window, layout) =>
         {
             if (ApplicationName(window) is string application)
-                _layouts.ExplicitChange(application, layout.ToInt64(), Environment.TickCount64);
+                _layouts.ExplicitChange(application, window.ToInt64(), layout.ToInt64(), Environment.TickCount64);
         };
         _typing = new TypingMonitor();
         _typing.Typed += () => _idle.Typed(Environment.TickCount64);
         _icon = MakeIcon();
         _tray = new NotifyIcon { Icon = _icon, Visible = true, Text = "TakenLi" };
         _tray.DoubleClick += (_, _) => ShowSettings();
+        _layoutInput = new LayoutInputMonitor();
+        _layoutInput.ForegroundChanged += window =>
+        {
+            if (window == Native.GetForegroundWindow()) ObserveApplication(window, Environment.TickCount64);
+        };
+        _layoutInput.TextKeyPressed += ConfirmTyping;
         _hotkeys.ActionRequested += action => RunAction(action, Native.GetForegroundWindow());
         try { _hotkeys.Apply(_settings); }
         catch (Exception error) { _initialHotkeyError = error; }
@@ -153,20 +164,8 @@ internal sealed class TrayContext : ApplicationContext
         }
         var now = Environment.TickCount64;
         _typing.Poll();
-        if (!_paused && !_editor.Busy)
-        {
-            var application = External(window) ? ApplicationName(window) : null;
-            var restore = _layouts.Observe(application, window.ToInt64(), Native.Layout(window).ToInt64(), now);
-            if (_observedWindow != window || restore is not null) _idle.Reset(now);
-            _observedWindow = window;
-            if (restore is long layout)
-            {
-                try { Native.RestoreExistingLayout(window, new IntPtr(layout), _settings.DisableCapsLockOnHebrew); }
-                catch (InvalidOperationException error) { Report(error); }
-                return;
-            }
-        }
-        if (_paused || _editor.Busy || !_settings.AutoReturnEnabled || !External(window) || IsExcluded(window))
+        if (ObserveApplication(window, now)) return;
+        if (_paused || _editor.Busy || !_settings.AutoReturnEnabled || _observedWindow != window || !External(window) || IsExcluded(window))
         {
             _idle.Reset(now);
             return;
@@ -176,8 +175,12 @@ internal sealed class TrayContext : ApplicationContext
             try
             {
                 var hebrew = Native.ExistingLayout(true);
-                if (Native.SwitchExistingLayout(window, true, _settings.DisableCapsLockOnHebrew))
+                if (Native.RestoreExistingLayout(window, hebrew, false))
+                {
                     _layouts.AutomaticReturn(hebrew.ToInt64(), now);
+                    if (_settings.DisableCapsLockOnHebrew && Native.GetForegroundWindow() == window)
+                        Native.DisableCapsLockIfOn();
+                }
                 else if (!_layoutWarning)
                 {
                     _layoutWarning = true;
@@ -190,6 +193,54 @@ internal sealed class TrayContext : ApplicationContext
                 // terminate the app when the Caps Lock key cannot be sent.
                 if (!_layoutWarning) { _layoutWarning = true; Report(error); }
             }
+        }
+    }
+
+    private bool ObserveApplication(IntPtr window, long now)
+    {
+        if (_closing || _paused || _editor.Busy || window == IntPtr.Zero || Native.IsDesktopOrTaskbar(window)) return false;
+        var application = External(window) ? ApplicationName(window) : null;
+        var restore = _layouts.Observe(application, window.ToInt64(), Native.Layout(window).ToInt64(), now);
+        if (_observedWindow != window || restore is not null) _idle.Reset(now);
+        _observedWindow = window;
+        if (restore is not long layout) return false;
+        try
+        {
+            if (!Native.RestoreExistingLayout(window, new IntPtr(layout), _settings.DisableCapsLockOnHebrew))
+                _layouts.RequestRejected();
+        }
+        catch (InvalidOperationException error) { Report(error); }
+        return true;
+    }
+
+    private void ConfirmTyping()
+    {
+        if (_closing || _paused || _editor.Busy) return;
+        var window = Native.GetForegroundWindow();
+        if (window != _observedWindow || ApplicationName(window) is not string application) return;
+        _layouts.Typing(application, window.ToInt64(), Native.Layout(window).ToInt64(), Environment.TickCount64);
+    }
+
+    private static System.Collections.Generic.Dictionary<string, long>? LoadRememberedLayouts()
+    {
+        try { return SettingsStore.LoadLayouts(); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null;
+        }
+    }
+
+    private void SaveRememberedLayouts()
+    {
+        try
+        {
+            SettingsStore.SaveLayouts(_layouts.Remembered);
+            _layoutSaveWarning = false;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            if (!_layoutSaveWarning) Report(error);
+            _layoutSaveWarning = true;
         }
     }
 
@@ -314,6 +365,7 @@ internal sealed class TrayContext : ApplicationContext
         _tray.ContextMenuStrip?.Dispose();
         _tray.Dispose();
         _icon.Dispose();
+        _layoutInput.Dispose();
         _hotkeys.Dispose();
         _timer.Dispose();
         base.ExitThreadCore();

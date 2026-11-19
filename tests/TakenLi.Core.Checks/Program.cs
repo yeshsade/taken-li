@@ -21,7 +21,7 @@ var checks = new (string Name, Action Check)[]
         p.Observe("a.exe", 1, 9, 0);
         p.AutomaticReturn(13, 1000);
         p.Observe("a.exe", 1, 13, 1000);
-        p.ExplicitChange("a.exe", 13, 1100);
+        p.ExplicitChange("a.exe", 1, 13, 1100);
         p.Observe("a.exe", 1, 13, 1200);
         p.Observe(null, 0, 0, 1300);
         Equal<long?>(13, p.Observe("a.exe", 1, 9, 1400));
@@ -37,7 +37,47 @@ var checks = new (string Name, Action Check)[]
         Equal<long?>(9, p.Observe("a.exe", 1, 13, 100));
         Equal<long?>(null, p.Observe("a.exe", 1, 13, 2100));
         p.Observe(null, 0, 0, 2200);
-        Equal<long?>(null, p.Observe("a.exe", 1, 13, 2300));
+        Equal<long?>(9, p.Observe("a.exe", 1, 13, 2300));
+        p.RequestRejected();
+        Equal<long?>(null, p.Observe("a.exe", 1, 13, 2500));
+        Equal(9L, p.Remembered["a.exe"]);
+    }),
+    ("Actual typing adopts automatic Hebrew, even before the next poll", () => {
+        var writes = 0;
+        var p = new ApplicationLayouts(changed: () => writes++);
+        p.Observe("ChatGPT.exe", 1, 9, 0);
+        p.AutomaticReturn(13, 1000);
+        p.Typing("ChatGPT.exe", 1, 9, 1050);
+        Equal(9L, p.Remembered["ChatGPT.exe"]);
+        p.Typing("WhatsApp.exe", 2, 13, 1100);
+        Equal(false, p.Remembered.ContainsKey("WhatsApp.exe"));
+        p.Typing("ChatGPT.exe", 1, 13, 1150);
+        p.Typing("chatgpt.exe", 1, 13, 1200);
+        Equal(13L, p.Remembered["CHATGPT.EXE"]);
+        Equal(2, writes);
+        p.Observe("Eclipse.exe", 2, 9, 1300);
+        Equal<long?>(13, p.Observe("ChatGPT.exe", 1, 9, 1500));
+    }),
+    ("Manual switch overtakes a pending restore and survives restart", () => {
+        var previous = new ApplicationLayouts();
+        previous.Observe("chatgpt.exe", 1, 9, 0);
+        previous.Observe("eclipse.exe", 2, 13, 1000);
+        var next = new ApplicationLayouts(previous.Remembered);
+        Equal<long?>(9, next.Observe("ChatGPT.exe", 3, 13, 2000));
+        next.Observe("ChatGPT.exe", 3, 42, 2100);
+        Equal(42L, next.Remembered["chatgpt.exe"]);
+        Equal(13L, next.Remembered["eclipse.exe"]);
+    }),
+    ("A late automatic return still leaves the remembered choice intact", () => {
+        var p = new ApplicationLayouts();
+        p.Observe("a.exe", 1, 9, 0);
+        p.AutomaticReturn(13, 1000);
+        p.Observe("a.exe", 1, 9, 3100);
+        p.Observe("a.exe", 1, 13, 3200);
+        Equal(9L, p.Remembered["a.exe"]);
+        p.Observe("a.exe", 1, 9, 3300);
+        p.Observe("a.exe", 1, 13, 3400);
+        Equal(13L, p.Remembered["a.exe"]);
     }),
     ("English to Hebrew", () => Equal("שלום", TextOperations.FixLayout("akuo"))),
     ("Hebrew to English", () => Equal("akuo", TextOperations.FixLayout("שלום"))),

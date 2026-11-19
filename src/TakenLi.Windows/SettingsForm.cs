@@ -298,7 +298,7 @@ internal sealed class SettingsForm : Form
         enabled.CheckedChanged += (_, _) => { _draft.AutoReturnEnabled = enabled.Checked; delay.Enabled = enabled.Checked; };
         Add(stack, delay);
         Add(stack, _ui.Paragraph(_ui.T("כל הקלדה מתחילה את הספירה מחדש. גם פעילות בעכבר דוחה את החזרה. נעשה שימוש רק בפריסות שכבר מותקנות. החזרה חלה על החלון הפעיל.", "Each keystroke restarts the timer. Mouse activity also postpones the return. Only existing layouts are used. The return applies to the active window.")));
-        Add(stack, _ui.Paragraph(_ui.T("שפת המקלדת זכורה לכל תוכנה כל עוד TakenLi פועלת, גם כשהטיימר כבוי. בחזרה לתוכנה השפה משוחזרת וההמתנה מתחילה מחדש. מעבר של הטיימר לעברית אינו מחליף את השפה הזכורה.", "The keyboard layout is remembered per application while TakenLi is running, even with the timer off. Returning restores the layout and restarts the wait. A timer return to Hebrew does not replace the remembered layout.")));
+        Add(stack, _ui.Paragraph(_ui.T("שפת המקלדת נשמרת לכל תוכנה, גם אחרי סגירת TakenLi. בחזרה לתוכנה השפה משוחזרת וההמתנה מתחילה מחדש. בחירת שפה או הקלדה בשפה אחרת מעדכנות את הזיכרון. המעבר של הטיימר לבדו אינו מעדכן אותו.", "The keyboard layout is saved per app across restarts. Returning restores it and restarts the wait. Selecting a layout or typing in another layout updates the saved choice. An idle return alone leaves the saved choice intact.")));
         var caps = _ui.Check(_ui.T("לכבות Caps Lock במעבר לעברית", "Turn off Caps Lock when switching to Hebrew"), _draft.DisableCapsLockOnHebrew);
         caps.Name = "DisableCapsLockOnHebrew";
         caps.CheckedChanged += (_, _) => _draft.DisableCapsLockOnHebrew = caps.Checked;

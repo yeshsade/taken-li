@@ -13,6 +13,15 @@ internal static class Native
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool SetForegroundWindow(IntPtr window);
     [DllImport("user32.dll")] internal static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
     [DllImport("user32.dll")] internal static extern IntPtr GetKeyboardLayout(uint thread);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetGUIThreadInfo(uint thread, ref GuiThreadInfo info);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GuiThreadInfo
+    {
+        internal uint Size, Flags;
+        internal IntPtr Active, Focus, Capture, MenuOwner, MoveSize, Caret;
+        internal int Left, Top, Right, Bottom;
+    }
     [DllImport("user32.dll")] internal static extern int GetKeyboardLayoutList(int count, [Out] IntPtr[]? layouts);
     [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool PostMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] internal static extern bool RegisterHotKey(IntPtr window, int id, uint modifiers, uint key);
@@ -104,11 +113,23 @@ internal static class Native
 
     internal static ushort Language(IntPtr window)
     {
-        var thread = GetWindowThreadProcessId(window, out _);
-        return (ushort)(GetKeyboardLayout(thread).ToInt64() & 0xffff);
+        return (ushort)(Layout(window).ToInt64() & 0xffff);
     }
 
-    internal static IntPtr Layout(IntPtr window) => GetKeyboardLayout(GetWindowThreadProcessId(window, out _));
+    internal static IntPtr Layout(IntPtr window)
+    {
+        var target = FocusWithin(window);
+        var thread = GetWindowThreadProcessId(target, out _);
+        return thread == 0 ? IntPtr.Zero : GetKeyboardLayout(thread);
+    }
+
+    private static IntPtr FocusWithin(IntPtr window)
+    {
+        var thread = GetWindowThreadProcessId(window, out _);
+        var info = new GuiThreadInfo { Size = (uint)Marshal.SizeOf<GuiThreadInfo>() };
+        return thread != 0 && GetGUIThreadInfo(thread, ref info) && info.Active == window && info.Focus != IntPtr.Zero
+            ? info.Focus : window;
+    }
 
     internal static IntPtr ExistingLayout(bool hebrew)
     {
@@ -128,9 +149,15 @@ internal static class Native
         var layouts = new IntPtr[Math.Max(0, GetKeyboardLayoutList(0, null))];
         var count = GetKeyboardLayoutList(layouts.Length, layouts);
         if (Array.IndexOf(layouts, layout, 0, Math.Max(0, count)) < 0) return false;
-        if (!PostMessage(window, WmInputLanguageChangeRequest, IntPtr.Zero, layout)) return false;
+        if (!PostLayout(window, layout)) return false;
         if ((layout.ToInt64() & 0xffff) == 0x040d && disableCapsLock) DisableCapsLockIfOn();
         return true;
+    }
+
+    private static bool PostLayout(IntPtr window, IntPtr layout)
+    {
+        var target = FocusWithin(window);
+        return GetForegroundWindow() == window && PostMessage(target, WmInputLanguageChangeRequest, IntPtr.Zero, layout);
     }
 
     internal static bool IsEnglish(IntPtr window) => (Language(window) & 0x3ff) == 9;
@@ -145,20 +172,7 @@ internal static class Native
 
     internal static bool SwitchExistingLayout(IntPtr window, bool hebrew, bool disableCapsLockOnHebrew)
     {
-        var count = GetKeyboardLayoutList(0, null);
-        if (count <= 0) return false;
-        var layouts = new IntPtr[count];
-        var actual = GetKeyboardLayoutList(count, layouts);
-        for (var i = 0; i < actual; i++)
-        {
-            var language = (ushort)(layouts[i].ToInt64() & 0xffff);
-            if (hebrew ? language == 0x040d : (language & 0x3ff) == 9)
-            {
-                if (!PostMessage(window, WmInputLanguageChangeRequest, IntPtr.Zero, layouts[i])) return false;
-                if (hebrew && disableCapsLockOnHebrew && GetForegroundWindow() == window) DisableCapsLockIfOn();
-                return true;
-            }
-        }
-        return false;
+        var layout = ExistingLayout(hebrew);
+        return layout != IntPtr.Zero && RestoreExistingLayout(window, layout, disableCapsLockOnHebrew);
     }
 }

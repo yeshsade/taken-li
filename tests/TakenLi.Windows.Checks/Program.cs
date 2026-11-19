@@ -36,6 +36,8 @@ internal static class Program
             Assert(Contrast(Ui.Muted, Ui.Surface) >= 4.5, "Secondary text contrast >= 4.5:1");
             Assert(Contrast(Color.White, Ui.Accent) >= 4.5, "Primary button contrast >= 4.5:1");
             CheckApplicationLayouts();
+            CheckSavedApplicationLayouts();
+            CheckRawKeyboardRegistration();
             CheckInputActivity();
             EditorChecks.Run();
             Console.WriteLine($"PASS: {_checks} native Windows UI checks; screenshots: {_output}");
@@ -119,7 +121,10 @@ internal static class Program
         var before = new IntPtr[count];
         Native.GetKeyboardLayoutList(count, before);
         using var form = new Form { Text = "Layout memory Windows check" };
+        using var editor = new TextBox { Dock = DockStyle.Fill };
+        form.Controls.Add(editor);
         Open(form);
+        editor.Focus();
         form.Activate();
         Pump(form);
         var original = Native.Layout(form.Handle);
@@ -146,6 +151,37 @@ internal static class Program
             Native.RestoreExistingLayout(form.Handle, original, false);
             Pump(form);
         }
+    }
+
+    private static void CheckSavedApplicationLayouts()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "taken-li-layout-check-" + Guid.NewGuid().ToString("N"), "application-layouts.json");
+        try
+        {
+            Assert(SettingsStore.LoadLayouts(path).Count == 0, "Missing layout file loads as empty");
+            var original = new ApplicationLayouts();
+            original.Observe("ChatGPT.exe", 1, 9, 0);
+            original.Observe("WhatsApp.exe", 2, 13, 1000);
+            SettingsStore.SaveLayouts(original.Remembered, path);
+            var restarted = new ApplicationLayouts(SettingsStore.LoadLayouts(path));
+            Assert(restarted.Observe("chatgpt.EXE", 3, 13, 2000) == 9, "Restart restores ChatGPT's saved layout");
+            Assert(restarted.Observe("WHATSAPP.exe", 4, 9, 3000) == 13, "Restart restores WhatsApp's separate saved layout");
+            Assert(!File.Exists(path + ".tmp"), "Layout file is replaced atomically");
+        }
+        finally
+        {
+            File.Delete(path);
+            File.Delete(path + ".tmp");
+            if (Directory.Exists(Path.GetDirectoryName(path))) Directory.Delete(Path.GetDirectoryName(path)!);
+        }
+    }
+
+    private static void CheckRawKeyboardRegistration()
+    {
+        using var monitor = new LayoutInputMonitor();
+        Assert(monitor.KeyboardRegistered, "Windows registers background keyboard activity");
+        Assert(LayoutInputMonitor.IsTextKey(0x41) && LayoutInputMonitor.IsTextKey(0xba), "Letter and punctuation can confirm a layout");
+        Assert(!LayoutInputMonitor.IsTextKey(0x10) && !LayoutInputMonitor.IsTextKey(0x25) && !LayoutInputMonitor.IsTextKey(0x79), "Modifiers, navigation and F10 are not typing");
     }
 
     private static void CheckSettings(string language)
